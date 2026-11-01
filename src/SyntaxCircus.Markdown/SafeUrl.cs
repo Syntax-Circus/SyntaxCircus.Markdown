@@ -11,6 +11,8 @@ namespace SyntaxCircus.Markdown;
 /// leading or trailing whitespace makes a URL unsafe; call <see cref="string.Trim()"/> first if your input may carry it.
 /// Only the link policy is exposed (<see cref="MarkdownOptions.AllowedLinkSchemes"/> and <see cref="MarkdownOptions.AllowRelativeUrls"/>);
 /// image schemes are not consulted. A safe URL is still the author's text: HTML-encode it when writing it into markup (Razor does).
+/// The text is not entity-decoded, so <c>&amp;#106;avascript:</c> is judged as a harmless relative URL; written unencoded
+/// (for example through <c>MarkupString</c>) a browser would decode it to <c>javascript:</c>, so never write the value as raw markup.
 /// All members are thread-safe and never throw for any <c>url</c>.
 /// </remarks>
 public static class SafeUrl

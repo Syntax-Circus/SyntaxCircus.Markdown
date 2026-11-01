@@ -86,7 +86,7 @@ var href3 = SafeUrl.IsSafe(input, options) ? input : null;             // your M
 - It does not trim. `" https://example.com"` is rejected like any URL with whitespace; call `Trim()` first if your field allows padding.
 - Rules are identical to Markdown links: scheme allow-list (`http`, `https`, `mailto` by default), relative URLs (`/x`, `x`, `?q`, `#f`) per `AllowRelativeUrls`, never `javascript:`/`vbscript:`, and rejection of whitespace, control characters, backslashes, `//host`, `%6Aavascript:`-style colon tricks and http(s) without a host. Because relative URLs are broader than `/x` and `#x` (`page` and `./page` are allowed), set `AllowRelativeUrls = false` and handle `/x` yourself if you need root-relative only.
 - `IsSafe` never throws on a bad `url`, is thread-safe, and the profile overload uses cached policies. The `MarkdownOptions` overload validates the options like `MarkdownRenderer` does (throws `ArgumentException` for `javascript`) and builds a small policy per call; prefer the profile overload, or a single `MarkdownRenderer`, on hot paths.
-- It only decides. HTML-encode the value when writing it into markup (Razor does this for attributes).
+- It only decides. HTML-encode the value when writing it into markup (Razor does this for attributes). `IsSafe` does not decode character entities, so `&#106;avascript:` passes as a harmless relative URL; the Markdown renderer decodes entities first and rejects it. An encoded attribute is safe either way, but never write the value as raw markup (for example through `MarkupString`), where a browser would decode it into `javascript:`.
 
 ## Testing your own pages
 
