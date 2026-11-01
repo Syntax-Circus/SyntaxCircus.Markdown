@@ -13,8 +13,8 @@ internal sealed class RenderPolicy
     public RenderPolicy(MarkdownOptions options)
     {
         options.Validate();
-        _links = new UrlPolicy(new HashSet<string>(options.AllowedLinkSchemes, StringComparer.OrdinalIgnoreCase), options.AllowRelativeUrls);
-        _images = new UrlPolicy(new HashSet<string>(options.AllowedImageSchemes, StringComparer.OrdinalIgnoreCase), options.AllowRelativeUrls);
+        _links = UrlPolicy.Create(options.AllowedLinkSchemes, options.AllowRelativeUrls);
+        _images = UrlPolicy.Create(options.AllowedImageSchemes, options.AllowRelativeUrls);
         _internalHosts = new HashSet<string>(options.InternalHosts, StringComparer.OrdinalIgnoreCase);
         _rel = BuildRel(options);
         Options = Snapshot(options);

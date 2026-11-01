@@ -12,11 +12,19 @@ Markdig usage found under `D:\dev\SyntaxCircus\*` (worktree and `artifacts/` cop
 | the-button | 1.4.1 | `src/Shared/SafeMarkdown.cs` (source-linked into Api, Web, Admin, Web.Tests) | pipe tables, DisableHtml; images replaced by alt text | strictest: no whitespace/control/backslash, no `//`, colon-before-delimiter rule | CMS legal/marketing |
 | dragon-poop | 1.5.1 | `src/DragonPoop.Web/Content/SafeMarkdown.cs` | DisableHtml only | http, https, mailto, `/x`; rest `#` | CMS content |
 | who-flung-pu | 1.3.2 | `src/WhoFlungPu.Web/Content/SafeMarkdown.cs` | DisableHtml; images rendered as their children | **https and mailto only**, `/x`, `#x` | CMS content |
-| syntax-circus-web | 1.4.1 | `src/SyntaxCircus.Content.Rendering/MarkdownContent.cs` + `SyntaxCircus.Content.Abstractions/ContentLink.cs` | autolinks, DisableHtml; AST rewrite of `LinkInline.Url` | `ContentLink.SafeUrl`: http, https, mailto, `/x`, `#x`; **returns `Uri.AbsoluteUri`** | CMS content |
+| syntax-circus-web | 1.4.1 | `src/SyntaxCircus.Content.Rendering/MarkdownContent.cs` + `SyntaxCircus.Content.Abstractions/ContentLink.cs` | autolinks, DisableHtml; AST rewrite of `LinkInline.Url` | `ContentLink.SafeUrl`: http, https, mailto, `/x`, `#x`; **returns `Uri.AbsoluteUri`** (package equivalent: `SafeUrl.IsSafe`) | CMS content |
 | techstrap | 1.4.0 | `src/TechStrap.Infrastructure/Content/MarkdigMarkdownRenderer.cs`, `HtmlSanitizerAdapter.cs`, `KbHtmlSanitizer.cs`, `KbContentRenderer.cs` | DisableHtml, soft break as hard break, autolinks, strikethrough; **then Ganss HtmlSanitizer** | URL policy delegated to the sanitizer (http, https, mailto); `rel="noopener noreferrer nofollow"` added post-hoc; catches Markdig `ArgumentException` for deep nesting | customer/agent messages and KB |
 | core-musica-web | 1.3.2 | `Services/Content/DocContentService.cs` | `UseAdvancedExtensions`, **raw HTML enabled** | none | repo-checked-in docs (trusted) |
 | site-spelunkr | 1.1.2 | `Controls/AiMessageBubbleControl.axaml.cs` | `Markdig.Markdown.ToPlainText` | n/a | desktop, plain text, not HTML |
 | puppies-plus | none | n/a | n/a | n/a | n/a (the earlier claim that it pins Markdig is wrong; no reference exists) |
+
+### Decisions
+
+Resolved by the owner for 0.1.0 (previously open questions):
+
+1. A link whose URL is rejected renders as plain text with no anchor (`UnsafeUrlBehavior.RenderAsText`, the default). Apps that need parity with the old `href="#"` behaviour opt in to `ReplaceWithPlaceholder`.
+2. Input longer than `MaxInputLength` (200,000) is truncated silently, not rejected. Validate length at the authoring boundary if the author must be told.
+3. The URL-safety check is exposed publicly as `SafeUrl.IsSafe` (profile and options overloads) so apps reuse one policy for non-Markdown fields. It judges and never normalizes, unlike syntax-circus-web's `ContentLink.SafeUrl`, which returned `Uri.AbsoluteUri`.
 
 ### Differences and defects found
 
@@ -67,7 +75,17 @@ For every repo: add `<PackageVersion Include="SyntaxCircus.Markdown" Version="0.
 
 ### syntax-circus-web
 
-- `MarkdownContent.ToSafeHtml` becomes a thin call to an injected or static renderer (`Article` profile if the CMS bodies have images, which the current code allows). Keep `ContentLink.SafeUrl`: it is used for non-Markdown fields (CTA hrefs and similar) and is out of this package's scope; consider a later change to make it call a public `UrlPolicy` if the package exposes one.
+- `MarkdownContent.ToSafeHtml` becomes a thin call to an injected or static renderer (`Article` profile if the CMS bodies have images, which the current code allows). Replace the body of `ContentLink.SafeUrl` (used for non-Markdown fields such as CTA hrefs) with the package's public check, so Markdown links and plain fields share one policy:
+
+  ```csharp
+  public static string? SafeUrl(string? value)
+  {
+      var candidate = value?.Trim();                       // IsSafe does not trim; the old code did
+      return SyntaxCircus.Markdown.SafeUrl.IsSafe(candidate) ? candidate : null; // fully qualified: the method name shadows the type
+  }
+  ```
+
+  Behaviour differences to accept or test for: (a) the result is the trimmed input, **not** `Uri.AbsoluteUri` (no host lower-casing, no added trailing `/`, no percent-encoding), so output is stable and equals what the editor typed; (b) relative URLs beyond `/x` and `#x` (`page`, `./page`, `?q`) are now allowed, set `AllowRelativeUrls = false` via the options overload if root-relative-only is required; (c) `//host`, whitespace inside the URL, and http(s) without a host are rejected (the old code relied on `Uri.TryCreate` and the leading-`//` check); (d) `mailto:` with an empty address is rejected. Update the `ContentLink` tests that assert `AbsoluteUri` output.
 - Expected differences: URLs no longer normalised through `Uri.AbsoluteUri` (so no trailing-slash or host-lowercase rewriting; tests asserting normalised hrefs change); external `rel` added; remote images need `https`; `UseAutoLinks` parity is the default.
 - `HeroAndBandTests` that check `MarkdownContent.ToSafeHtml` output remain valid for the cases shown (script text encoded, markdown intro rendered).
 

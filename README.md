@@ -77,6 +77,20 @@ Every property can be adjusted after picking a profile; `MarkdownOptions.For(pro
 
 No separate HTML sanitizer is used or needed: the set of elements is fixed by the Markdig renderers (p, h1-h6, ul, ol, li, blockquote, pre, code, em, strong, del, hr, br, a, img, table parts) and the only attributes are `href`, `src`, `alt`, `title`, `rel`, `target`, `id`, `class` (`language-*` on code), `loading`, `decoding`, `referrerpolicy`, `start` (ordered lists) and table `style="text-align: ..."`. The test suite renders a 179-entry hostile corpus under four configurations, parses the output with a real HTML parser (AngleSharp, test-only) and asserts exactly that allow-list, and a mutation check (disabling the URL policy) fails 246 of the tests.
 
+## Checking a URL outside Markdown
+
+The same URL check is public for fields that are not Markdown (a call-to-action `href`, a "website" field):
+
+```csharp
+if (SafeUrl.IsSafe(cta.Url))                                   // Restricted: http, https, mailto, relative
+{ /* <a href="@cta.Url"> */ }
+
+SafeUrl.IsSafe(cta.Url, MarkdownProfile.Article);              // preset overload
+SafeUrl.IsSafe(cta.Url, myOptions);                            // AllowedLinkSchemes + AllowRelativeUrls of your options
+```
+
+`SafeUrl.IsSafe` is a yes/no judgement of the text exactly as given, using the code path the renderer uses, so it never disagrees with a rendered link. It does **not** trim or normalize: use the original string when it returns true. It never throws for any `url` (null, empty, huge, garbage all return false); it throws only for a null or invalid `MarkdownOptions`. Only the link policy applies (`AllowedLinkSchemes`, `AllowRelativeUrls`), never image schemes. See [docs/USAGE.md](docs/USAGE.md#validating-a-url-that-is-not-markdown).
+
 ## What this is not
 
 - Not a sanitizer for arbitrary HTML. If you must allow some raw HTML, this is the wrong package.

@@ -72,6 +72,22 @@ o.UnsafeUrls = UnsafeUrlBehavior.ReplaceWithPlaceholder;
 
 The default drops the anchor and keeps the label, which avoids dead `#` links in the page.
 
+## Validating a URL that is not Markdown
+
+`SafeUrl.IsSafe` applies the renderer's link policy to a single string, for CTA buttons, "website" fields and similar.
+
+```csharp
+var href = SafeUrl.IsSafe(input) ? input : null;                       // Restricted preset
+var href2 = SafeUrl.IsSafe(input, MarkdownProfile.Article) ? input : null;
+var href3 = SafeUrl.IsSafe(input, options) ? input : null;             // your MarkdownOptions
+```
+
+- It returns `bool`, not a rewritten URL. Safe means safe as written, so use the original string. There is no `Uri.AbsoluteUri` normalization (host case, trailing `/`, percent-encoding stay as authored); if you want a canonical form, normalize after the check, not instead of it.
+- It does not trim. `" https://example.com"` is rejected like any URL with whitespace; call `Trim()` first if your field allows padding.
+- Rules are identical to Markdown links: scheme allow-list (`http`, `https`, `mailto` by default), relative URLs (`/x`, `x`, `?q`, `#f`) per `AllowRelativeUrls`, never `javascript:`/`vbscript:`, and rejection of whitespace, control characters, backslashes, `//host`, `%6Aavascript:`-style colon tricks and http(s) without a host. Because relative URLs are broader than `/x` and `#x` (`page` and `./page` are allowed), set `AllowRelativeUrls = false` and handle `/x` yourself if you need root-relative only.
+- `IsSafe` never throws on a bad `url`, is thread-safe, and the profile overload uses cached policies. The `MarkdownOptions` overload validates the options like `MarkdownRenderer` does (throws `ArgumentException` for `javascript`) and builds a small policy per call; prefer the profile overload, or a single `MarkdownRenderer`, on hot paths.
+- It only decides. HTML-encode the value when writing it into markup (Razor does this for attributes).
+
 ## Testing your own pages
 
 Assert on the rendered string, or parse it. The package's own tests use AngleSharp to check that no unexpected element, attribute or URL scheme appears; copy `tests/SyntaxCircus.Markdown.Tests/Support/HtmlAssert.cs` if you want the same check in your suite.

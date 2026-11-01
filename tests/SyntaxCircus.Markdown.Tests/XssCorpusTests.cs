@@ -8,7 +8,7 @@ namespace SyntaxCircus.Markdown.Tests;
 /// </summary>
 public class XssCorpusTests
 {
-    private static readonly string[] CorpusItems =
+    internal static readonly string[] CorpusItems =
     [
         // Direct dangerous schemes
         "[x](javascript:alert(1))",
