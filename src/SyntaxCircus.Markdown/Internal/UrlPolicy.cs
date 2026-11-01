@@ -3,6 +3,10 @@ namespace SyntaxCircus.Markdown.Internal;
 /// <summary>Decides whether a URL taken from Markdown may be written into an <c>href</c> or <c>src</c> attribute.</summary>
 internal sealed class UrlPolicy(IReadOnlySet<string> allowedSchemes, bool allowRelative)
 {
+    /// <summary>Builds a policy from a snapshot of <paramref name="schemes"/>. The renderer and <see cref="SyntaxCircus.Markdown.SafeUrl"/> both go through here.</summary>
+    public static UrlPolicy Create(IEnumerable<string> schemes, bool allowRelative) =>
+        new(new HashSet<string>(schemes, StringComparer.OrdinalIgnoreCase), allowRelative);
+
     /// <summary>True when <paramref name="url"/> is acceptable. See <see cref="Classify"/>.</summary>
     public bool IsAllowed(string? url) => Classify(url) is not null;
 

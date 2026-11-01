@@ -1,0 +1,101 @@
+# SyntaxCircus.Markdown usage guide
+
+Recipes for the common cases. The option reference is in the [README](../README.md).
+
+## Pick a profile
+
+- **Anything a visitor can type** (comments, messages, support replies): `Restricted`. No images, `rel="... nofollow ugc"`.
+- **Content your editors write** (blog posts, help pages): `Article`. HTTPS and relative images, no nofollow, heading ids.
+- **Legal documents**: `Restricted`, with `MinimumHeadingLevel = 2` and the page title passed in the context. Check the stored documents first: this renders inline Markdown (bold, links, tables) that a plain-text renderer would have shown literally.
+
+## Blazor Server page
+
+```csharp
+builder.Services.AddSyntaxCircusMarkdown(MarkdownProfile.Article, o =>
+{
+    o.MinimumHeadingLevel = 2;
+    o.InternalHosts.Add("www.example.com");
+    o.InternalHosts.Add("example.com");
+});
+```
+
+```razor
+@using SyntaxCircus.Markdown
+@inject IMarkdownRenderer Markdown
+
+<h1>@_post.Title</h1>
+<div class="prose">
+    @((MarkupString)Markdown.Render(_post.Body, new MarkdownRenderContext(_post.Title)))
+</div>
+```
+
+Rendering is synchronous and allocation-light enough to run in `OnParametersSet`; cache the resulting string per post if you render the same body on every request.
+
+## Two configurations in one app
+
+```csharp
+builder.Services.AddKeyedSyntaxCircusMarkdown("legal", MarkdownProfile.Restricted, o => o.MinimumHeadingLevel = 2);
+builder.Services.AddKeyedSyntaxCircusMarkdown("blog", MarkdownProfile.Article);
+```
+
+```razor
+@inject IServiceProvider Services
+@code { private IMarkdownRenderer Blog => Services.GetRequiredKeyedService<IMarkdownRenderer>("blog"); }
+```
+
+Or in a service constructor: `([FromKeyedServices("blog")] IMarkdownRenderer markdown)`.
+
+## No dependency injection
+
+```csharp
+var html = SafeMarkdown.ToHtml(userText);                          // Restricted
+var html2 = SafeMarkdown.ToHtml(postBody, MarkdownProfile.Article);
+
+var custom = new MarkdownRenderer(new MarkdownOptions { UnsafeUrls = UnsafeUrlBehavior.ReplaceWithPlaceholder });
+```
+
+A `MarkdownRenderer` is immutable and thread-safe. Build it once; building one per call re-creates the Markdig pipeline.
+
+## Allowing another scheme
+
+```csharp
+o.AllowedLinkSchemes.Add("tel");
+```
+
+`javascript` and `vbscript` throw at construction. `data` is not special-cased because it can only get in if you add it; do not.
+
+## Migrating a wrapper that rendered `href="#"` for bad links
+
+```csharp
+o.UnsafeUrls = UnsafeUrlBehavior.ReplaceWithPlaceholder;
+```
+
+The default drops the anchor and keeps the label, which avoids dead `#` links in the page.
+
+## Validating a URL that is not Markdown
+
+`SafeUrl.IsSafe` applies the renderer's link policy to a single string, for CTA buttons, "website" fields and similar.
+
+```csharp
+var href = SafeUrl.IsSafe(input) ? input : null;                       // Restricted preset
+var href2 = SafeUrl.IsSafe(input, MarkdownProfile.Article) ? input : null;
+var href3 = SafeUrl.IsSafe(input, options) ? input : null;             // your MarkdownOptions
+```
+
+- It returns `bool`, not a rewritten URL. Safe means safe as written, so use the original string. There is no `Uri.AbsoluteUri` normalization (host case, trailing `/`, percent-encoding stay as authored); if you want a canonical form, normalize after the check, not instead of it.
+- It does not trim. `" https://example.com"` is rejected like any URL with whitespace; call `Trim()` first if your field allows padding.
+- Rules are identical to Markdown links: scheme allow-list (`http`, `https`, `mailto` by default), relative URLs (`/x`, `x`, `?q`, `#f`) per `AllowRelativeUrls`, never `javascript:`/`vbscript:`, and rejection of whitespace, control characters, backslashes, `//host`, `%6Aavascript:`-style colon tricks and http(s) without a host. Because relative URLs are broader than `/x` and `#x` (`page` and `./page` are allowed), set `AllowRelativeUrls = false` and handle `/x` yourself if you need root-relative only.
+- `IsSafe` never throws on a bad `url`, is thread-safe, and the profile overload uses cached policies. The `MarkdownOptions` overload validates the options like `MarkdownRenderer` does (throws `ArgumentException` for `javascript`) and builds a small policy per call; prefer the profile overload, or a single `MarkdownRenderer`, on hot paths.
+- It only decides. HTML-encode the value when writing it into markup (Razor does this for attributes). `IsSafe` does not decode character entities, so `&#106;avascript:` passes as a harmless relative URL; the Markdown renderer decodes entities first and rejects it. An encoded attribute is safe either way, but never write the value as raw markup (for example through `MarkupString`), where a browser would decode it into `javascript:`.
+
+## Testing your own pages
+
+Assert on the rendered string, or parse it. The package's own tests use AngleSharp to check that no unexpected element, attribute or URL scheme appears; copy `tests/SyntaxCircus.Markdown.Tests/Support/HtmlAssert.cs` if you want the same check in your suite.
+
+## Behaviours worth knowing
+
+- A URL containing a space is rejected (`[a](<my file.md>)` renders as text). Use `%20`.
+- `[a](page)` is allowed (relative); `[a](a:b)` is rejected because `a:` looks like a scheme.
+- Link URLs are written as authored (not normalized through `Uri`), so `https://Example.com` stays as typed.
+- Input over `MaxInputLength` is truncated silently. Validate length at your authoring boundary if you need to tell the author.
+- Autolinked text such as `ftp://x` stays plain text when the scheme is not allowed.

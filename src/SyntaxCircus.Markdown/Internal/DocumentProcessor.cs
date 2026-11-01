@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using Markdig.Renderers.Html;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 
@@ -19,13 +20,14 @@ internal static class DocumentProcessor
             headings.Remove(first);
         }
 
-        var used = new HashSet<string>(StringComparer.Ordinal);
+        var taken = new HashSet<string>(StringComparer.Ordinal);
+        var counters = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var heading in headings)
         {
             heading.Level = Math.Clamp(Math.Max(heading.Level, options.MinimumHeadingLevel), 1, 6);
             if (options.GenerateHeadingIds)
             {
-                heading.GetAttributes().Id = UniqueId(options.HeadingIdPrefix + Slugify(PlainText(heading)), used);
+                heading.GetAttributes().Id = UniqueId(options.HeadingIdPrefix + Slugify(PlainText(heading)), taken, counters);
             }
         }
     }
@@ -55,12 +57,12 @@ internal static class DocumentProcessor
         return text.ToString();
     }
 
-    /// <summary>Lower-cases, keeps letters and digits (any script), turns every other run into one hyphen, trims hyphens. Empty becomes "section".</summary>
+    /// <summary>GitHub-style: lower-cases, keeps letters and digits (any script), turns each run of whitespace, "-" or "_" into one hyphen, drops all other punctuation. Empty becomes "section".</summary>
     internal static string Slugify(string text)
     {
         var slug = new StringBuilder(text.Length);
         var pendingHyphen = false;
-        foreach (var rune in text.Normalize(NormalizationForm.FormC).EnumerateRunes())
+        foreach (var rune in text.EnumerateRunes())
         {
             if (Rune.IsLetterOrDigit(rune))
             {
@@ -72,7 +74,7 @@ internal static class DocumentProcessor
                 pendingHyphen = false;
                 slug.Append(Rune.ToLowerInvariant(rune).ToString());
             }
-            else
+            else if (Rune.IsWhiteSpace(rune) || rune.Value is '-' or '_')
             {
                 pendingHyphen = true;
             }
@@ -81,14 +83,17 @@ internal static class DocumentProcessor
         return slug.Length == 0 ? "section" : slug.ToString();
     }
 
-    private static string UniqueId(string candidate, HashSet<string> used)
+    private static string UniqueId(string candidate, HashSet<string> taken, Dictionary<string, int> counters)
     {
         var id = candidate;
-        for (var n = 1; !used.Add(id); n++)
+        counters.TryGetValue(candidate, out var n);
+        while (!taken.Add(id))
         {
+            n++;
             id = string.Create(CultureInfo.InvariantCulture, $"{candidate}-{n}");
         }
 
+        counters[candidate] = n;
         return id;
     }
 }
