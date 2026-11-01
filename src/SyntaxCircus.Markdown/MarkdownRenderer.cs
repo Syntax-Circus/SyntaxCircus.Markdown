@@ -45,16 +45,16 @@ public sealed class MarkdownRenderer : IMarkdownRenderer
     }
 
     /// <inheritdoc />
-    public string Render(string? markdown) => Render(markdown, null);
+    public string Render(string? markdown) => RenderCore(markdown, null);
 
     /// <inheritdoc />
     public string Render(string? markdown, MarkdownRenderContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        return Render(markdown, (MarkdownRenderContext?)context);
+        return RenderCore(markdown, context);
     }
 
-    private string Render(string? markdown, MarkdownRenderContext? context)
+    private string RenderCore(string? markdown, MarkdownRenderContext? context)
     {
         if (string.IsNullOrWhiteSpace(markdown))
         {

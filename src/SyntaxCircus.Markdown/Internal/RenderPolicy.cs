@@ -6,12 +6,13 @@ internal sealed class RenderPolicy
     private readonly UrlPolicy _links;
     private readonly UrlPolicy _images;
     private readonly HashSet<string> _internalHosts;
+    private static readonly string[] NewTabRel = ["noopener", "noreferrer"];
+
     private readonly string? _rel;
 
     public RenderPolicy(MarkdownOptions options)
     {
         options.Validate();
-        Options = options;
         _links = new UrlPolicy(new HashSet<string>(options.AllowedLinkSchemes, StringComparer.OrdinalIgnoreCase), options.AllowRelativeUrls);
         _images = new UrlPolicy(new HashSet<string>(options.AllowedImageSchemes, StringComparer.OrdinalIgnoreCase), options.AllowRelativeUrls);
         _internalHosts = new HashSet<string>(options.InternalHosts, StringComparer.OrdinalIgnoreCase);
@@ -46,13 +47,8 @@ internal sealed class RenderPolicy
         var tokens = (options.ExternalLinkRel ?? string.Empty).Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList();
         if (options.OpenExternalLinksInNewTab)
         {
-            foreach (var required in new[] { "noopener", "noreferrer" })
-            {
-                if (!tokens.Contains(required, StringComparer.OrdinalIgnoreCase))
-                {
-                    tokens.Insert(0, required);
-                }
-            }
+            var missing = NewTabRel.Where(required => !tokens.Contains(required, StringComparer.OrdinalIgnoreCase)).ToList();
+            tokens.InsertRange(0, missing);
         }
 
         return tokens.Count == 0 ? null : string.Join(' ', tokens);

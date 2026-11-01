@@ -7,8 +7,8 @@
     <PackageVersion Include="GitVersion.MsBuild" Version="6.6.0" />
     <PackageVersion Include="Markdig" Version="1.5.1" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
 
+    <PackageVersion Include="AngleSharp" Version="1.9.0" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <!-- Pinned below xunit.v3 4.0.0: matches the other SyntaxCircus packages (NCrunch adapter incompatibility). -->
